@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>FireChat🔥</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.18.0.js"></script>
+
+    <style>
+        :root {
+            --primary: #ff4444; --bg: #0a0a0a; --card: #161616; --text: #ffffff;
+            --sidebar-bg: #111111; --border: #222222; --input-bg: #1a1a1a; --sidebar-w: 260px;
+        }
+        [data-theme="light"] {
+            --bg: #f4f7f6; --card: #ffffff; --text: #222222; --sidebar-bg: #ffffff;
+            --border: #dddddd; --input-bg: #eeeeee;
+        }
+
+        #adminNoticeBar { display: none; background: #ff4444; color: white; text-align: center; padding: 8px; font-size: 14px; font-weight: bold; z-index: 1001; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; transition: 0.3s; }
+        
+        .sidebar { position: fixed; top: 0; left: calc(-1 * var(--sidebar-w)); width: var(--sidebar-w); height: 100%; background: var(--sidebar-bg); transition: 0.3s; z-index: 2000; border-right: 1px solid var(--border); padding: 25px 20px; }
+        .sidebar.active { left: 0; }
+        .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; z-index: 1500; backdrop-filter: blur(3px); }
+        .sidebar-overlay.active { display: block; }
+
+        .header { background: var(--sidebar-bg); padding: 12px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; z-index: 1000; }
+        #mainApp { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; width: 100%; }
+
+        #userListScreen { overflow-y: auto; flex-grow: 1; padding: 15px; width: 100%; }
+        .user-item { background: var(--card); border-radius: 15px; padding: 15px; margin-bottom: 12px; cursor: pointer; display: flex; align-items: center; border: 1px solid var(--border); transition: 0.2s; }
+        .user-item:hover { transform: translateY(-2px); border-color: var(--primary); }
+
+        .pic-wrapper { position: relative; width: 55px; height: 55px; margin-right: 15px; flex-shrink: 0; }
+        .profile-pic { width: 100%; height: 100%; border-radius: 50% !important; object-fit: cover; border: 2px solid var(--border); }
+        .status-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--bg); position: absolute; bottom: 2px; right: 2px; }
+        .online { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+        .offline { background: #7f8c8d; }
+
+        #chatScreen { flex-grow: 1; display: none; flex-direction: column; overflow: hidden; height: 100%; }
+        .chat-container { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; scroll-behavior: smooth; }
+        .bubble { max-width: 75%; padding: 10px 16px; border-radius: 18px; margin-bottom: 10px; font-size: 15px; }
+        .my-msg { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 4px; }
+        .other-msg { align-self: flex-start; background: var(--border); color: var(--text); border-bottom-left-radius: 4px; }
+        .msg-time { font-size: 9px; opacity: 0.6; display: block; margin-top: 4px; }
+
+        .input-area { background: var(--sidebar-bg); padding: 15px; border-top: 1px solid var(--border); flex-shrink: 0; }
+        .form-control { background: var(--input-bg) !important; border: 1px solid var(--border) !important; color: var(--text) !important; border-radius: 12px; }
+        
+        #banOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; color: white; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .nav-link { color: var(--text); padding: 12px; cursor: pointer; text-decoration: none; display: block; border-radius: 10px; margin-bottom: 5px; }
+        .nav-link:hover { background: var(--primary); color: white; }
+    </style>
+</head>
+<body data-theme="dark">
+
+    <div id="adminNoticeBar">📢 <span id="noticeMsg"></span></div>
+
+    <div id="banOverlay">
+        <h1 style="font-size: 80px;">🚫</h1>
+        <h2 class="fw-bold text-danger">আপনি ব্যান হয়েছেন!</h2>
+        <p>এডমিনের অনুমতি ছাড়া আপনি অ্যাপটি ব্যবহার করতে পারবেন না।</p>
+    </div>
+
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <div id="sidebar" class="sidebar shadow-lg">
+        <h4 class="text-danger fw-bold mb-4">FireMenu</h4>
+        <div class="nav-link" onclick="toggleSidebar(); location.reload();">🏠 Home</div>
+        <div class="nav-link" onclick="showSettings()">⚙️ Settings</div>
+        <div class="nav-link" onclick="showAbout()">ℹ️ About Developer</div>
+        <hr style="border-color: var(--border);">
+        <div class="nav-link text-danger fw-bold" onclick="logout()">🚪 Logout</div>
+    </div>
+
+    <div class="header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <button onclick="toggleSidebar()" class="btn btn-sm btn-outline-danger me-2">☰</button>
+            <button id="backBtn" onclick="backToUserList()" class="btn btn-sm btn-outline-secondary me-2 d-none">←</button>
+            <h5 class="text-danger m-0 fw-bold">FireChat🔥</h5>
+        </div>
+        <div id="userInfo" class="small opacity-75 d-flex align-items-center gap-2">
+            <span id="displayMyName"></span>
+            <button id="globalCallBtn" class="btn btn-sm btn-success d-none" onclick="startCall()">📞 Call</button>
+        </div>
+    </div>
+
+    <div id="mainApp">
+        <div id="authScreen" class="p-4 w-100 mt-5">
+            <div class="card p-4 rounded-4 text-center bg-dark border-secondary">
+                <h3 id="authTitle" class="text-white mb-4">লগইন</h3>
+                <input type="text" id="authName" class="form-control mb-3 text-center" placeholder="আপনার নাম">
+                <div id="loginBtnGroup">
+                    <button onclick="handleAuth('login')" class="btn btn-danger w-100 py-2 fw-bold">Login</button>
+                    <p class="small mt-3">নেই? <a href="#" onclick="toggleAuth(true)" class="text-danger">নতুন অ্যাকাউন্ট</a></p>
+                </div>
+                <div id="registerBtnGroup" class="d-none">
+                    <button onclick="handleAuth('register')" class="btn btn-success w-100 py-2 fw-bold">Register</button>
+                    <p class="small mt-3">আছে? <a href="#" onclick="toggleAuth(false)" class="text-danger">লগইন</a></p>
+                </div>
+            </div>
+        </div>
+
+        <div id="userListScreen" class="d-none">
+            <div class="d-flex justify-content-between mb-3 px-1 mt-3"><h6 class="opacity-50 ps-3">সক্রিয় সদস্যগণ</h6><span id="activeCount" class="badge bg-danger rounded-pill me-3">0</span></div>
+            <div id="userList"></div>
+        </div>
+
+        <div id="chatScreen" style="display:none;">
+            <div class="p-2 border-bottom border-secondary small text-warning text-center" id="chatTitle"></div>
+            <div id="chatBox" class="chat-container"></div>
+            <div id="inputArea" class="input-area">
+                <div class="d-flex gap-2">
+                    <input type="text" id="messageInput" class="form-control" placeholder="মেসেজ লিখুন..." onfocus="scrollToBottom()">
+                    <button onclick="sendMessage()" class="btn btn-danger px-4 fw-bold">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="settingsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body p-4 text-white bg-dark">
+        <label class="mb-1">থিম পরিবর্তন:</label>
+        <select id="themeSelect" class="form-control mb-3" onchange="changeTheme(this.value)"><option value="dark">Dark Mode</option><option value="light">Light Mode</option></select>
+        <label class="mb-1">নাম পরিবর্তন:</label>
+        <input type="text" id="newNameInput" class="form-control mb-3"><button onclick="updateUsername()" class="btn btn-primary w-100">Save</button>
+    </div></div></div></div>
+
+    <div class="modal fade" id="aboutModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content text-center p-4 text-white bg-dark">
+        <h4 class="text-danger fw-bold">Developer Information</h4>
+        <p class="mb-1"><b>Developer Name:</b> Mabud</p>
+        <p class="mb-1"><b>WhatsApp:</b> 01304394875</p>
+        <p><b>Email:</b> skmabudvai@gmail.com</p>
+        <hr style="border-color: #444;">
+        <p class="small text-secondary mb-0">Powered by <b>TechLab</b></p>
+    </div></div></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDqsk9dwn4npNdSUSnwlAsYxBLOFnAxdiU",
+            authDomain: "labtube-pk.firebaseapp.com",
+            databaseURL: "https://labtube-pk-default-rtdb.firebaseio.com",
+            projectId: "labtube-pk",
+            storageBucket: "labtube-pk.firebasestorage.app",
+            messagingSenderId: "1087312038505",
+            appId: "1:1087312038505:web:589130dbfca348498df0f8"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let currentUser = localStorage.getItem("fc_user") || null;
+        let currentChatUser = null;
+        const rtcClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+        let localAudioTrack;
+
+        function changeTheme(theme) { document.body.setAttribute('data-theme', theme); localStorage.setItem('fc_theme', theme); }
+        changeTheme(localStorage.getItem('fc_theme') || 'dark');
+        function toggleSidebar() { document.getElementById("sidebar").classList.toggle("active"); document.getElementById("sidebarOverlay").classList.toggle("active"); }
+        function showSettings() { toggleSidebar(); document.getElementById("newNameInput").value = currentUser; new bootstrap.Modal(document.getElementById('settingsModal')).show(); }
+        function showAbout() { toggleSidebar(); new bootstrap.Modal(document.getElementById('aboutModal')).show(); }
+
+        async function updateUsername() {
+            const newName = document.getElementById("newNameInput").value.trim();
+            if(newName && newName !== currentUser) {
+                const snap = await db.ref(`users/${newName}`).once("value");
+                if(snap.exists()) return alert("এই নাম ইতিমধ্যে ব্যবহৃত!");
+                await db.ref(`users/${newName}`).set({ username: newName, status: "online", isBanned: false });
+                await db.ref(`users/${currentUser}`).remove();
+                localStorage.setItem("fc_user", newName); location.reload();
+            }
+        }
+
+        function toggleAuth(isReg) { 
+            document.getElementById("authTitle").innerText = isReg ? "Register" : "Login";
+            document.getElementById("loginBtnGroup").classList.toggle("d-none", isReg);
+            document.getElementById("registerBtnGroup").classList.toggle("d-none", !isReg);
+        }
+
+        async function handleAuth(type) {
+            const name = document.getElementById("authName").value.trim();
+            if (!name || name === "undefined") return alert("সঠিক নাম দিন!");
+            const snap = await db.ref(`users/${name}`).once("value");
+            if (type === 'register' && snap.exists()) return alert("নাম আছে!");
+            if (type === 'login' && !snap.exists()) return alert("আইডি নেই!");
+            if (type === 'register') await db.ref(`users/${name}`).set({ username: name, status: "online", lastSeen: Date.now(), isBanned: false });
+            currentUser = name; localStorage.setItem("fc_user", name); startApp();
+        }
+
+        function startApp() {
+            document.getElementById("authScreen").classList.add("d-none");
+            document.getElementById("userListScreen").classList.remove("d-none");
+            document.getElementById("displayMyName").innerText = currentUser;
+            db.ref(`users/${currentUser}/status`).set("online");
+            db.ref(`users/${currentUser}/status`).onDisconnect().set("offline");
+            db.ref(`users/${currentUser}`).on("value", (snap) => {
+                const u = snap.val();
+                document.getElementById("banOverlay").style.display = (u && u.isBanned) ? "flex" : "none";
+            });
+            db.ref("system/callEnabled").on("value", (snap) => {
+                const btn = document.getElementById("globalCallBtn");
+                if(snap.val() === true) btn.classList.remove("d-none");
+                else btn.classList.add("d-none");
+            });
+            db.ref("system/notice").on("value", (snap) => {
+                const n = snap.val();
+                document.getElementById("adminNoticeBar").style.display = n ? "block" : "none";
+                document.getElementById("noticeMsg").innerText = n || "";
+            });
+            loadUsers();
+        }
+
+        async function startCall() {
+            try {
+                const appId = "e7f0022394be4f9da7d432dd04021f0d"; 
+                localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+                await rtcClient.join(appId, "global_channel", null, null);
+                await rtcClient.publish([localAudioTrack]);
+                const btn = document.getElementById("globalCallBtn");
+                btn.innerText = "🛑 End"; btn.classList.replace("btn-success", "btn-danger");
+                btn.onclick = endCall;
+                rtcClient.on("user-published", async (user, mediaType) => {
+                    await rtcClient.subscribe(user, mediaType);
+                    if (mediaType === "audio") user.audioTrack.play();
+                });
+                alert("কল কানেক্ট হয়েছে!");
+            } catch (e) { alert("মাইক্রোফোন পারমিশন দিন!"); }
+        }
+
+        async function endCall() {
+            if(localAudioTrack) { localAudioTrack.stop(); localAudioTrack.close(); }
+            await rtcClient.leave();
+            const btn = document.getElementById("globalCallBtn");
+            btn.innerText = "📞 Call"; btn.classList.replace("btn-danger", "btn-success");
+            btn.onclick = startCall;
+            alert("কল শেষ!");
+        }
+
+        function loadUsers() {
+            db.ref("users").on("value", (snap) => {
+                const list = document.getElementById("userList"); list.innerHTML = "";
+                let online = 0;
+                snap.forEach((child) => {
+                    const u = child.val(); 
+                    if (!u || u.username === currentUser) return;
+                    if(u.status === 'online') online++;
+                    list.innerHTML += `
+                        <div class="user-item" onclick="openChat('${u.username}')">
+                            <div class="pic-wrapper"><img src="https://ui-avatars.com/api/?name=${u.username}&background=random" class="profile-pic"><div class="status-dot ${u.status === 'online' ? 'online' : 'offline'}"></div></div>
+                            <div class="flex-grow-1"><b class="d-block">${u.username}</b><small class="opacity-50">${u.status === 'online' ? 'সক্রিয়' : 'অফলাইন'}</small></div>
+                        </div>`;
+                });
+                document.getElementById("activeCount").innerText = online;
+            });
+        }
+
+        function openChat(user) {
+            currentChatUser = user;
+            document.getElementById("userListScreen").classList.add("d-none");
+            document.getElementById("chatScreen").style.display = "flex";
+            document.getElementById("backBtn").classList.remove("d-none");
+            document.getElementById("chatTitle").innerText = "Chat with " + user;
+            const chatId = [currentUser, user].sort().join("_");
+            const box = document.getElementById("chatBox"); box.innerHTML = "";
+            db.ref(`privateChats/${chatId}`).off();
+            db.ref(`privateChats/${chatId}`).on("child_added", (s) => {
+                const m = s.val();
+                const div = document.createElement("div");
+                div.className = `bubble ${m.from === currentUser ? 'my-msg' : 'other-msg'}`;
+                div.innerHTML = `${m.text}<span class="msg-time">${m.time || ''}</span>`;
+                box.appendChild(div); scrollToBottom();
+            });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById("messageInput"); if (!input.value.trim()) return;
+            const chatId = [currentUser, currentChatUser].sort().join("_");
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            db.ref(`privateChats/${chatId}`).push({ from: currentUser, text: input.value.trim(), time: time });
+            input.value = ""; input.focus();
+        }
+
+        function backToUserList() { document.getElementById("chatScreen").style.display = "none"; document.getElementById("backBtn").classList.add("d-none"); document.getElementById("userListScreen").classList.remove("d-none"); }
+        function scrollToBottom() { const box = document.getElementById("chatBox"); setTimeout(() => { box.scrollTop = box.scrollHeight; }, 300); }
+        function logout() { db.ref(`users/${currentUser}/status`).set("offline"); localStorage.clear(); location.reload(); }
+        window.onload = () => { if(currentUser) startApp(); };
+    </script>
+</body>
+</html>
